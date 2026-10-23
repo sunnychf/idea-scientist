@@ -1,0 +1,6 @@
+interface:
+  display_name: "Idea Scientist"
+  short_description: "有文献依据的科研 idea 与研究提案"
+  default_prompt: "用 $idea-scientist 针对下面的研究问题生成一个有文献依据的 idea 和研究提案。Challenge：<现有方法在哪里失效、为什么难> Problem definition：<设定、输入、输出>"
+policy:
+  allow_implicit_invocation: true
