@@ -49,6 +49,7 @@ GAPS = """## Axis: 连接基数估计误差
 
 CANDS = """### C1 — 漂移感知 sketch
 - **Intuition:** 把流式算法里的衰减窗口用到基数 sketch 上。
+- **Story:** 数据更新后静态 sketch 仍按旧分布估计，优化器因此选错连接顺序；根因是统计信息没有有效期；流式算法用衰减窗口让旧数据逐渐失效，用到 sketch 上就能跟上漂移。
 - **Gap it attacks:** 连接基数估计误差 / 静态 sketch。
 - **Source inspiration:** [2512.00002] 的鲁棒规划；新颖性类型 recombination-of-distant-concepts。
 - **How it maps to this problem:** 窗口对应统计信息的有效期。
@@ -61,6 +62,7 @@ SCORES = """### C1 verdict
 - **Verdict:** survive
 - **Evidence:**
   - [2401.00001] 没有处理漂移。
+- **Story in 1 sentence:** 静态 sketch 跟不上漂移，因为统计没有有效期，所以给 sketch 加衰减窗口。
 - **Strongest objection in 1 sentence:** 突变漂移。
 """
 
@@ -68,6 +70,10 @@ REPORT = {
     "title": "漂移感知的连接基数估计",
     "topic_relevance": {"sub_topic": ["查询优化"], "primary_focus": ["基数估计"]},
     "one_sentence_thesis": "让基数 sketch 随数据漂移衰减更新，从而在数据变化后仍能选对连接顺序。",
+    "story": {"arc": "数据更新后，静态 sketch 仍按旧分布估计连接大小，优化器因此选错连接顺序 [2401.00001]。根因是统计信息没有有效期。"
+                     "流式算法用衰减窗口让旧数据逐渐失效；把它用到 sketch 上，估计就能跟上漂移。",
+              "headline_claim": "在渐进漂移的负载上消除静态 sketch 的估计滞后",
+              "carrying_evidence": ["q-error 随时间变化的曲线：静态 sketch 逐步变差，衰减 sketch 保持平稳"]},
     "core_problem": {"problem_statement": "静态 sketch 在数据漂移后失准 [2401.00001]。",
                      "why_it_matters": ["已有研究报告约 30% 的查询计划因估计误差变慢 [doi:10.14778/2222222]。"],
                      "concrete_example": "插入新数据后，连接 A⋈B 的估计偏小 100 倍。"},
@@ -88,7 +94,12 @@ REPORT = {
                             "newly_constructed": False}], "baselines": ["PostgreSQL"], "main_metrics": ["q-error 的 95% 分位数"],
                             "ablations": ["去掉衰减"]},
     "falsifiable_predictions": [{"pillar": "衰减", "prediction": "漂移后 q-error 低于静态 sketch",
-                                 "kill_condition": "漂移后 q-error 不低于静态 sketch"}],
+                                 "promise_signal": "漂移最剧烈的查询上，q-error 比去掉衰减的版本低",
+                                 "kill_condition": "窗口调好后，有无衰减对漂移后的 q-error 都没有影响"}],
+    "pilot_guidance": {"minimal_pilot": "在 JOB 的一个子集上注入渐进漂移，比较衰减 sketch 和去掉衰减的版本",
+                       "not_kill_reasons": ["窗口未调时，整体 q-error 仍高于 PostgreSQL"],
+                       "iteration_budget": "两轮：先核对实现，再调窗口宽度",
+                       "fallback_story": "只对渐进漂移有效时，讲成渐进漂移下的低成本修正"},
     "limitations": ["突变漂移下失效"],
 }
 
@@ -127,22 +138,33 @@ check(code == 0 and "0 errors" in out, "good run passes")
 check("percentage in" not in out or "core_problem.why_it_matters" in out, "percentage outside evaluation fields is warned")
 check("why_it_matters[0] has a percentage" in out, "cited-fact percentage gets a WARN, not an ERROR")
 check("proposed_evaluation" not in out, "percentages inside proposed_evaluation are allowed")
+check("not better than SOTA" not in out, "mechanism-level kill condition is not flagged")
 win = build(WORK / "win", crlf=True, bom=True)
 code, out = sh("check_run.py", win)
 check(code == 0, "CRLF line endings and UTF-8 BOM are accepted:\n" + out)
+story = build(WORK / "story")
+(story / "scores.md").write_text(SCORES.replace("survive", "revise(focus=story)"), encoding="utf-8")
+code, out = sh("check_run.py", story)
+check(code == 0 and "revise focus" not in out, "story is a valid revise dimension")
 
 # --- bad run: every gate tripped once
 bad = build(WORK / "bad")
 r = dict(REPORT)
 r["limitations"] = []
 r["title"] = "TODO"
-r["falsifiable_predictions"] = [{"pillar": "x", "prediction": "y"}]
+r["falsifiable_predictions"] = [{"pillar": "x", "prediction": "y", "kill_condition": "z"},
+                                {"pillar": "x", "prediction": "y", "promise_signal": "p",
+                                 "kill_condition": "预实验中 q-error 不优于 PostgreSQL 基线"}]
+r["story"] = dict(REPORT["story"], headline_claim="")
+r["pilot_guidance"] = "跑一下看看"
 r["comparison_to_sota"] = {"related_methods": ["A [2405.00001]"], "key_differences": ["vs. B [2402.11111v2]"]}
 r["related_work"] = [dict(REPORT["related_work"][0], citations=["Smith et al. 2023", "2401.00001"])]
 (bad / "report.json").write_text(json.dumps(r, ensure_ascii=False), encoding="utf-8")
 (bad / "gaps/01-cardinality.md").write_text(GAPS.replace("- **Evidence route:** 在漂移负载上比较 q-error。\n", "")
                                             + "- **Gap:** 二\n- **Gap:** 三\n", encoding="utf-8")
-(bad / "candidates.md").write_text(CANDS.replace("- **Main risk:** 突变漂移下失效。\n", ""), encoding="utf-8")
+(bad / "candidates.md").write_text("".join(line for line in CANDS.splitlines(keepends=True)
+                                           if not line.startswith(("- **Story:**", "- **Main risk:**"))),
+                                   encoding="utf-8")
 (bad / "scores.md").write_text(SCORES.replace("survive", "revise(focus=vibes)") + "\n- [2409.00009] 仅题录\n", encoding="utf-8")
 (bad / "papers/2512.00002.md").write_text("# T\n- ID: 2512.00002 | Date: 2025-12-30 | Venue: arXiv | URL: u\n- Access: abstract-only\n", encoding="utf-8")
 (bad / "papers/2601.00001.md").write_text(DIGEST.format(title="Late", pid="2601.00001", date="2025-12-01", venue="arXiv",
@@ -153,13 +175,16 @@ print(out)
 expect = {
     "field 'limitations' is missing or empty": "empty required field",
     "title contains a placeholder": "TODO placeholder",
-    "falsifiable_predictions[0] needs both": "prediction without kill condition",
+    "falsifiable_predictions[0] needs 'prediction', 'promise_signal' and 'kill_condition'": "prediction without promise signal",
+    "falsifiable_predictions[1].kill_condition reads like 'not better than SOTA": "SOTA-style kill condition is warned",
+    "story.headline_claim is missing or empty": "story sub-field",
+    "'pilot_guidance' must be an object": "pilot guidance shape",
     "drop the version suffix in [2402.11111v2]": "versioned arXiv id",
     "non-ID entry 'Smith et al. 2023'": "non-ID citation entry",
     "[2405.00001] is cited in report.json:comparison_to_sota.related_methods[0] but was never read": "unread citation",
     "3 gaps; at most 2 per axis": "laundry-list gaps",
     "gap 1 is missing Evidence route": "gap schema",
-    "candidates.md C1: missing Main risk": "candidate schema",
+    "candidates.md C1: missing Story, Main risk": "candidate schema",
     "papers/2512.00002.md answers no '### Goal:'": "digest without answered goals",
     "[2512.00002] is abstract-only": "abstract-only warning",
     "Date 2025-12-01 differs from the fetched record 2026-01-15": "digest date vs fetched date",
@@ -185,11 +210,16 @@ check(code == 0, "render exits 0")
 check("[[2401.00001]](https://arxiv.org/abs/2401.00001)" in md, "arXiv citation linked")
 check("[[doi:10.14778/2222222]](https://doi.org/10.14778/2222222)" in md, "DOI citation linked")
 check("## 参考文献" in md and "- [2401.00001] Learned Cardinality Estimation With Sketches (arXiv cs.DB, 2024-01-02)" in md, "reference list from digests")
-check("| 衰减 | 漂移后 q-error 低于静态 sketch | 漂移后 q-error 不低于静态 sketch |" in md, "predictions table")
+check("| 衰减 | 漂移后 q-error 低于静态 sketch | 漂移最剧烈的查询上，q-error 比去掉衰减的版本低 "
+      "| 窗口调好后，有无衰减对漂移后的 q-error 都没有影响 |" in md, "predictions table")
+check("## 故事线" in md and md.index("## 故事线") < md.index("## 核心问题")
+      and "**核心主张**: 在渐进漂移的负载上消除静态 sketch 的估计滞后" in md, "story comes first")
+check("## 预实验判读" in md and "- 窗口未调时，整体 q-error 仍高于 PostgreSQL" in md, "pilot guidance")
 check(md.count("```") == 2 and "for t in stream" in md, "pseudocode fences normalized")
 code, out = sh("render_report.py", good, "--lang", "en", "--out", WORK / "report_en.md")
 en = (WORK / "report_en.md").read_text(encoding="utf-8")
-check(code == 0 and "## References" in en and "## Falsifiable predictions" in en, "English labels")
+check(code == 0 and "## References" in en and "## Falsifiable predictions" in en
+      and "## Story" in en and "## Pilot guidance" in en, "English labels")
 
 print(f"\n{failed} failures")
 sys.exit(1 if failed else 0)

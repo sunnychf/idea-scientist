@@ -2,7 +2,8 @@
 """Final checks for an idea-scientist run directory.
 
 Covers the hard gates of the original IdeaScientist reward (valid JSON, every field filled, every cited
-paper actually read, no paper on or after the cutoff) plus the schemas of gaps/, candidates.md and scores.md.
+paper actually read, no paper on or after the cutoff) plus the schemas of gaps/, candidates.md and scores.md,
+and the story-first fields (story, pilot_guidance, a promise signal for every prediction).
 
 Usage: python check_run.py RUN_DIR        (exit code 1 when any ERROR is found)
 """
@@ -23,16 +24,25 @@ ID = (r"(?:\d{4}\.\d{4,5}|[a-z][a-z\-]*(?:\.[A-Za-z]{2})?/\d{7}"
       r"|doi:[^\[\]\s]+|openreview:[^\[\]\s]+|s2:[^\[\]\s]+)")
 CITE = re.compile(r"\[(" + ID + r")\]")
 VERSIONED = re.compile(r"\[(\d{4}\.\d{4,5}v\d+)\]")
-REQUIRED = ["title", "topic_relevance", "one_sentence_thesis", "core_problem", "key_novelty",
+REQUIRED = ["title", "topic_relevance", "one_sentence_thesis", "story", "core_problem", "key_novelty",
             "problem_definition", "key_terms", "related_work", "method", "model_details",
-            "comparison_to_sota", "proposed_evaluation", "falsifiable_predictions", "limitations"]
+            "comparison_to_sota", "proposed_evaluation", "falsifiable_predictions", "pilot_guidance", "limitations"]
+SUBFIELDS = {"story": ["arc", "headline_claim", "carrying_evidence"],
+             "pilot_guidance": ["minimal_pilot", "not_kill_reasons", "iteration_budget", "fallback_story"]}
+PRED_FIELDS = ("prediction", "promise_signal", "kill_condition")
 GAP_FIELDS = ["Near-miss methods and coverage", "Methodological deficiency", "Why it matters", "Evidence route"]
-CAND_FIELDS = ["Intuition", "Gap it attacks", "Source inspiration", "How it maps to this problem",
+CAND_FIELDS = ["Intuition", "Story", "Gap it attacks", "Source inspiration", "How it maps to this problem",
                "Why it could work / feasibility", "Novelty vs. closest in-domain work", "Main risk"]
-REVISE_DIMS = {"novelty", "coherence", "feasibility", "clarity", "mapping", "grounding"}
+REVISE_DIMS = {"novelty", "coherence", "feasibility", "clarity", "mapping", "grounding", "story"}
 PLACEHOLDER = re.compile(r"\b(?:TODO|TBD|FIXME)\b|待补|待定|<(?:proposal title|term|plain-language definition|"
                          r"Method|specific difference|notation|plain language)>")
-NUMBERS_OK = ("proposed_evaluation", "falsifiable_predictions", "model_details", "method")
+NUMBERS_OK = ("proposed_evaluation", "falsifiable_predictions", "pilot_guidance", "model_details", "method")
+# a kill condition that only says "not better than SOTA / the baselines": a pilot that trails SOTA is not a kill
+SOTA_KILL = re.compile(r"(?=.*(?:SOTA|state.of.the.art|baseline|基线|已有方法|现有方法|最强方法))"
+                       r"(?=.*(?:(?:not|n't) (?:better|beat|outperform|exceed|surpass|improve)"
+                       r"|fails? to (?:beat|outperform|exceed|surpass|improve)|no (?:better|gain|improvement)"
+                       r"|worse than|underperform|lags? behind|falls? short|不优于|不如|不超过|未超过|没有?超过"
+                       r"|未能超越|持平|落后|差于|劣于|没有提升|无提升))", re.I | re.S)
 GOAL = re.compile(r"^\s*###\s*Goal\s*:", re.M | re.I)
 
 
@@ -84,12 +94,26 @@ def main(argv):
     for key in REQUIRED:
         if report.get(key) in (None, "", [], {}):
             err(f"report.json: field '{key}' is missing or empty")
+    for key, subs in SUBFIELDS.items():
+        value = report.get(key)
+        if value in (None, "", [], {}):
+            continue
+        if not isinstance(value, dict):
+            err(f"report.json: '{key}' must be an object with {', '.join(subs)}")
+            continue
+        for sub in subs:
+            if value.get(sub) in (None, "", [], {}):
+                err(f"report.json: {key}.{sub} is missing or empty")
     preds = report.get("falsifiable_predictions")
     if isinstance(preds, list):
         for i, p in enumerate(preds):
-            if not (isinstance(p, dict) and str(p.get("prediction") or "").strip()
-                    and str(p.get("kill_condition") or "").strip()):
-                err(f"report.json: falsifiable_predictions[{i}] needs both 'prediction' and 'kill_condition'")
+            if not (isinstance(p, dict) and all(str(p.get(k) or "").strip() for k in PRED_FIELDS)):
+                err(f"report.json: falsifiable_predictions[{i}] needs 'prediction', 'promise_signal' and "
+                    "'kill_condition'")
+            elif SOTA_KILL.match(str(p["kill_condition"])):
+                warn(f"report.json: falsifiable_predictions[{i}].kill_condition reads like 'not better than SOTA / "
+                     "baselines': fine only once the iteration budget is spent on the targeted failure; a pilot "
+                     "that trails SOTA is not a kill, so tie it to the mechanism or the story")
     thesis = str(report.get("one_sentence_thesis") or "")
     if len(re.findall(r"[A-Za-z0-9][\w'\-]*", thesis)) > 30 or len(re.findall(r"[\u4e00-\u9fff]", thesis)) > 60:
         warn("report.json: one_sentence_thesis is longer than 30 words")

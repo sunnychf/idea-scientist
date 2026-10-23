@@ -15,6 +15,17 @@
 - 你提出的方法：可以是新的、未经验证的，但预期结果只能写成预测，绝不能写成观察到的结果。任何字段都不能出现编造的数字，也不能留 TODO 占位。
 - 每个字段都要填。下面 schema 中的每个键都是必需的，要给出有实质内容、基于输入和引用文献的值。某字段看似不适用也要正面回应（例如写明“不需要训练模型”及理由），而不是删掉这个键。
 
+## 故事与预实验
+
+提案先要讲成一个好故事。`story.arc` 写论文的故事线：具体的失败 → 现有方法失败的根因 → 洞见 → 方法为什么从洞见推出 → 读者读完记住什么。`story.headline_claim` 是论文要守住的主张，它不能依赖“在所有基准上超过 SOTA”，例如“消除了这类失败”“以更低代价达到同等效果”。
+
+预实验只看前景，不要求一开始就超过 SOTA：一次没调参的小规模预实验输给调好的基线，说明不了什么。研究者或下游的 autoresearch 工具会照你写的内容判读预实验，所以要在看到任何结果之前写清楚：
+- `promise_signal`：每条预测“有前景”的早期信号。典型的是：在故事针对的那类失败上，方法相对自身消融（同一份代码、同样的调参预算）朝预测方向改善；或者故事依赖的诊断量按预测变化。主指标还低于 SOTA 也算有前景。
+- `kill_condition`：只针对机制或故事被证伪，例如所诊断的失败在基线上根本不出现，或者迭代预算用完后，方法仍完全没有改变它要改变的那个量。不能写成“预实验没超过 SOTA/基线”。
+- `pilot_guidance`：最小预实验怎么做；哪些结果不构成放弃的理由；下判断之前给多少轮调试、调参和扩大规模；主张不成立但机制有效时，同一个方法还能讲的备选故事。
+
+信号和条件都要可观测、事先写定。不这样做，“有前景”就会变成什么结果都能自圆其说。
+
 ## 写作步骤
 
 0. 读完输入后决定要引用哪些论文，把其中尚未读过、也不在 gaps/candidates 中的论文全部读完。所有引用都读完之前不要开始写。
@@ -34,6 +45,11 @@
     "primary_focus": ["aspects addressed within the sub-topic"]
   },
   "one_sentence_thesis": "MUST be under 30 words, no jargon, no metric numbers.",
+  "story": {
+    "arc": "3-5 sentences: the concrete failure -> its root cause in existing methods -> the key insight -> why the method follows from it -> what the reader takes away.",
+    "headline_claim": "the main claim the paper will defend; it must stand without beating SOTA on every benchmark (e.g. removes the targeted failure, or matches SOTA at lower cost).",
+    "carrying_evidence": ["the 1-3 figures or tables that would carry the story, e.g. a diagnostic showing the failure on the baseline and its removal by the method"]
+  },
   "core_problem": {
     "problem_statement": "1-2 sentences: be specific about what fails and why.",
     "why_it_matters": ["motivation ONLY — real-world impact + research gap in prior work; do NOT describe the solution here."],
@@ -89,8 +105,16 @@
     "ablations": ["ablation studies that isolate each contribution"]
   },
   "falsifiable_predictions": [
-    {"pillar": "which design pillar this tests", "prediction": "one empirical claim the method implies", "kill_condition": "the observation that would FALSIFY it"}
+    {"pillar": "which design pillar this tests", "prediction": "one empirical claim the method implies",
+     "promise_signal": "the early, cheap observation that counts as promising even while headline metrics still trail SOTA",
+     "kill_condition": "the observation that would FALSIFY the mechanism or the story; never just 'not better than SOTA/baselines in a pilot'"}
   ],
+  "pilot_guidance": {
+    "minimal_pilot": "the cheapest experiment that tests the story's core mechanism: setting or data slice, the method vs. its own ablation under the same budget, the diagnostic to watch",
+    "not_kill_reasons": ["early outcomes that must NOT be read as failure, e.g. headline metric below published SOTA with untuned hyperparameters"],
+    "iteration_budget": "how many rounds of debugging, tuning and scaling to spend before judging, and what each round changes",
+    "fallback_story": "if the mechanism works but the headline claim does not hold, the narrower story the same method still supports"
+  },
   "limitations": ["3-5 concise bullets, acknowledged or apparent from the method"]
 }
 ```
@@ -112,7 +136,9 @@
 - proposed_evaluation 直接检验核心主张；基线相关、够强、公平调参；规划消融和不确定性估计，使每个主张都能被单独检验。
 - 新颖性写成一条可复用的洞见，并说明已有工作为什么没覆盖它。
 - 方法自顶向下讲解，设计选择都有理由；给出复现所需的实现细节。
-- falsifiable_predictions 覆盖主要的设计支柱，每条都有明确的证伪条件。
+- story 一气呵成：从失败到方法，每一步都有依据、没有牵强的跳跃；headline_claim 不依赖全面超过 SOTA。
+- falsifiable_predictions 覆盖主要的设计支柱，每条都有前景信号和明确的证伪条件；证伪条件针对机制或故事，而不是“没超过 SOTA”。
+- pilot_guidance 在看到任何结果之前就能照着执行；备选故事事先写明，同样由机制支撑，不是事后换个说法。
 - limitations 写出真实的假设、适用边界和可能的失效模式。
 - 承重论断引用的是**真正**支持它的论文：对的论文，对的贡献。
 - 禁止：把预期结果写成测得的结果，无论是定性的“优于/解决了”还是定量的“达到 92%”；使用 better、robust、efficient 之类的词却不给操作性定义；自我夸奖或提及评分标准。
