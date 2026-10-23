@@ -71,8 +71,9 @@ Codex 默认开启子智能体。主线程扮演 orchestrator；每调用一次�
 
 ```
 你是 idea-scientist 流程中的 <角色名> 角色，只负责这一个角色：不要运行 idea-scientist 的完整流程，也不要再派生子智能体。
-先完整阅读并严格遵循这两个文件：
+先完整阅读并严格遵循这三个文件：
 - <SKILL_DIR>/references/paper-protocol.md
+- <SKILL_DIR>/references/idea-constraints.md
 - <SKILL_DIR>/references/<角色名>.md
 运行目录 RUN：<RUN 的绝对路径>（先读其中的 problem.md）
 Python 命令 PY：<PY>；脚本目录：<SKILL_DIR>/scripts
@@ -88,7 +89,7 @@ Python 命令 PY：<PY>；脚本目录：<SKILL_DIR>/scripts
 
 **B. 单智能体模式（没有子智能体功能，或用户要求时）**
 
-- 你依次扮演各个角色。每次切换角色时，先读 `references/` 下该角色的文件，并明确标出当前角色。
+- 你依次扮演各个角色。每次切换角色时，先读 `references/` 下该角色的文件，并明确标出当前角色。`references/idea-constraints.md` 对所有角色都适用，开始时读一次。
 - 每个角色开始前，只重新读取该角色允许读的文件。角色之间只通过文件交接，不要把上一个角色没写进文件的想法带到下一个角色。
 - 到 reviewer 时真正切换成怀疑者：主动去找推翻新颖性的论文，而不是为自己刚写的 idea 辩护。
 
@@ -138,8 +139,8 @@ Status: drilling
 - 深度优先：选定一个缺口后，先把“构思 → 评审”走完再考虑别的。不要同时派 5 个 innovator 赌一个赢。
 - 子任务要窄：“调研维度 Z”“针对缺口 G 产出一个 intuition”“评审 C7”。任务里出现“另外也考虑一下……”，就拆成几个任务。
 - 跨领域的创造性交给 innovator。你的工作是选缺口，并靠 reviewer 保持诚实，不是自己发明机制。
-- 只接受方法学贡献：新的方法、技术、算法、模型或系统。基准、数据集、分析、立场文章、综述都不行。
-- 故事优先：reject 只留给让故事讲不成立的根本问题（缺口不真实、已被做过、核心假设与文献矛盾、不是方法学贡献）。reviewer 以“效果不确定”“未必超过 SOTA”为由 reject 时，带上 `FEEDBACK` 让它按故事核查重审。
+- 只接受方法学贡献：新的方法、技术、算法、模型或系统。基准、数据集、分析、立场文章、综述都不行；审计类、保真类 idea 也不做（定义见 references/idea-constraints.md），选缺口时跳过补法只能落在这两类的缺口。
+- 故事优先：reject 只留给不做的类型（不是方法学贡献，或属于审计类、保真类）和让故事讲不成立的根本问题（缺口不真实、已被做过、核心假设与文献矛盾）。reviewer 以“效果不确定”“未必超过 SOTA”为由 reject 时，带上 `FEEDBACK` 让它按故事核查重审。
 - 一切以文件为准。角色交回的内容单薄或缺引用时，带着更明确的要求重新派发，不要用自己的猜测去补。
 - 没有固定次数。默认上限供参考：挑战维度 ≤4 个；每个缺口修改 ≤3 轮；连续 3 个方向被 reject，就停下来向用户汇报已有发现，问是否继续。
 
@@ -152,17 +153,18 @@ Status: drilling
 | reviewer | references/reviewer.md | scores.md 末尾追加一条 verdict |
 | report_writer | references/report_writer.md | report.json |
 
-所有角色都遵循 references/paper-protocol.md（检索、获取全文、“读过”的定义、摘要文件格式、引用格式）。
+所有角色都遵循 references/paper-protocol.md（检索、获取全文、“读过”的定义、摘要文件格式、引用格式）和 references/idea-constraints.md（不做的 idea 类型）。
 
 ## 6. 收尾校验（交付前必须做）
 
 运行 `PY SKILL_DIR/scripts/check_run.py RUN`。它对应原系统奖励函数里的“门槛”，任何一项不通过，提案就不合格：
 - report.json 能解析成一个 JSON 对象，必需字段（含 `story`、`pilot_guidance` 的各子项）都有内容，每条预测都有前景信号和证伪条件，没有 TODO 之类的占位；
+- report.json 的标题、论点、故事、创新点和方法里没有“审计”“保真”这类说法（references/idea-constraints.md）；
 - gaps、candidates、scores 的格式符合各角色的规定（每个维度最多 2 个缺口，字段齐全）；
 - report.json、gaps、candidates 引用的每个 ID 都有摘要文件，且摘要至少回答了一个阅读目标；
 - 设了 Cutoff 时，读过的论文没有一篇在截止日期当天或之后首次公开。
 
-有 ERROR 时，把问题反馈给对应的角色重新派发（例如引用了没读过的论文，就让 report_writer 去读或删掉该引用），修好后再跑一遍。WARN 需要人工判断：百分比如果是转述已有论文的事实就没问题，如果是在断言本方法的结果，就必须改写成预测。证伪条件读起来像“没超过 SOTA/基线”时也会 WARN：除非它只在迭代预算用完之后、针对故事所说的那类失败才生效，否则让 report_writer 改成针对机制或故事的条件。
+有 ERROR 时，把问题反馈给对应的角色重新派发（例如引用了没读过的论文，就让 report_writer 去读或删掉该引用），修好后再跑一遍。命中审计、保真类说法时，先判断 idea 的核心是否属于这两类：属于就退回 innovator 换方向，只是措辞沾边就让 report_writer 改掉这些说法。WARN 需要人工判断：百分比如果是转述已有论文的事实就没问题，如果是在断言本方法的结果，就必须改写成预测。证伪条件读起来像“没超过 SOTA/基线”时也会 WARN：除非它只在迭代预算用完之后、针对故事所说的那类失败才生效，否则让 report_writer 改成针对机制或故事的条件。
 
 脚本查不到的几条，人工过一遍：一句话论点是否只有一个核心想法；故事线是否一气呵成；是否把预期结果写成了既成事实（“优于”“解决了”）；评审中的最强反对意见在提案里是否得到了回应。没有 Python 时，按上面的清单逐条人工检查。
 

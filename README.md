@@ -31,6 +31,10 @@ survive → report_writer → report.json → 收尾校验 → report.md
 
 这些都在看到任何结果之前写定，避免“有前景”变成什么结果都能自圆其说。本工具自己不跑实验，把 report.json 交给 autoresearch 工具时，让它按这几个字段判读预实验。
 
+### 不做的 idea 类型
+
+审计类（核心是对已有方法的输出或过程做事后检查、核查、监控或追溯）和保真类（核心是让结果对原始对象保持忠实或一致）的 idea 不做，只换说法不算改掉。gap_finder 不报只能这样补的缺口，innovator 不往这两类上想，reviewer 遇到就 reject，校验脚本也会检查提案的标题、论点、故事、创新点和方法里有没有这类说法。定义在 `codex/idea-scientist/references/idea-constraints.md`（Claude 版在 SKILL.md §5.0）；要增删类型，改这个定义和校验脚本里的 `AVOID`。
+
 ## 目录
 
 | 路径 | 内容 |
@@ -111,6 +115,7 @@ python tests/test_check_render.py
 - 检索从离线的 Svalbard Idea Vault 换成了 arXiv、Semantic Scholar 和网页搜索。
 - 提示词翻译成中文并做了精简；原奖励函数中的硬门槛改写成了收尾校验脚本。
 - 评审和提案改成故事优先：reviewer 增加故事核查，提案增加 `story`、`pilot_guidance` 和每条预测的 `promise_signal`，`kill_condition` 只针对机制或故事。
+- 不做审计类、保真类 idea。
 
 ## 致谢与许可
 

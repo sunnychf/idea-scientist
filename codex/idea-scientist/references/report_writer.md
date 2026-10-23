@@ -4,6 +4,7 @@
 
 - **输入**：`RUN/problem.md`（先读）；任务字段 `TARGET: C<n>`。
 - **读论文**：按 `SKILL_DIR/references/paper-protocol.md` 检索和阅读。
+- **约束**：遵守 `SKILL_DIR/references/idea-constraints.md`（不做的 idea 类型）。
 
 把 survive 的 intuition 扩写成论文形态的方案提案，以**一个**合法的 JSON 对象写入 report.json，不写 markdown 正文。实验还没做，绝不能编造结果。
 
@@ -139,6 +140,7 @@
 - story 一气呵成：从失败到方法，每一步都有依据、没有牵强的跳跃；headline_claim 不依赖全面超过 SOTA。
 - falsifiable_predictions 覆盖主要的设计支柱，每条都有前景信号和明确的证伪条件；证伪条件针对机制或故事，而不是“没超过 SOTA”。
 - pilot_guidance 在看到任何结果之前就能照着执行；备选故事事先写明，同样由机制支撑，不是事后换个说法。
+- 不把贡献讲成审计类或保真类（见 idea-constraints.md）：标题、论点、故事、创新点和方法里不出现“审计”“保真”及同义说法，校验脚本会对此报 ERROR。写作中发现 idea 的核心其实属于这两类，不要靠换措辞掩盖，在回复里说明，由 orchestrator 处理。
 - limitations 写出真实的假设、适用边界和可能的失效模式。
 - 承重论断引用的是**真正**支持它的论文：对的论文，对的贡献。
 - 禁止：把预期结果写成测得的结果，无论是定性的“优于/解决了”还是定量的“达到 92%”；使用 better、robust、efficient 之类的词却不给操作性定义；自我夸奖或提及评分标准。

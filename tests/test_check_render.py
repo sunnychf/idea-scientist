@@ -146,6 +146,13 @@ story = build(WORK / "story")
 (story / "scores.md").write_text(SCORES.replace("survive", "revise(focus=story)"), encoding="utf-8")
 code, out = sh("check_run.py", story)
 check(code == 0 and "revise focus" not in out, "story is a valid revise dimension")
+scope = build(WORK / "scope")
+rs = json.loads(json.dumps(REPORT))
+rs["related_work"][0]["what_it_does"] += "它们追求对原始分布的保真 [2401.00001]。"
+rs["proposed_evaluation"]["main_metrics"].append("synthetic data fidelity")
+(scope / "report.json").write_text(json.dumps(rs, ensure_ascii=False), encoding="utf-8")
+code, out = sh("check_run.py", scope)
+check(code == 0 and "frames the idea" not in out, "audit / fidelity words outside the idea's own fields are allowed")
 
 # --- bad run: every gate tripped once
 bad = build(WORK / "bad")
@@ -157,6 +164,7 @@ r["falsifiable_predictions"] = [{"pillar": "x", "prediction": "y", "kill_conditi
                                  "kill_condition": "预实验中 q-error 不优于 PostgreSQL 基线"}]
 r["story"] = dict(REPORT["story"], headline_claim="")
 r["pilot_guidance"] = "跑一下看看"
+r["key_novelty"] = {"main_idea": "可审计的衰减 sketch", "explanation": ["keeps Fidelity to the fresh data"]}
 r["comparison_to_sota"] = {"related_methods": ["A [2405.00001]"], "key_differences": ["vs. B [2402.11111v2]"]}
 r["related_work"] = [dict(REPORT["related_work"][0], citations=["Smith et al. 2023", "2401.00001"])]
 (bad / "report.json").write_text(json.dumps(r, ensure_ascii=False), encoding="utf-8")
@@ -179,6 +187,8 @@ expect = {
     "falsifiable_predictions[1].kill_condition reads like 'not better than SOTA": "SOTA-style kill condition is warned",
     "story.headline_claim is missing or empty": "story sub-field",
     "'pilot_guidance' must be an object": "pilot guidance shape",
+    "key_novelty.main_idea frames the idea as audit / fidelity ('审计')": "audit wording in the idea",
+    "key_novelty.explanation[0] frames the idea as audit / fidelity ('Fidelity')": "fidelity wording, any case",
     "drop the version suffix in [2402.11111v2]": "versioned arXiv id",
     "non-ID entry 'Smith et al. 2023'": "non-ID citation entry",
     "[2405.00001] is cited in report.json:comparison_to_sota.related_methods[0] but was never read": "unread citation",

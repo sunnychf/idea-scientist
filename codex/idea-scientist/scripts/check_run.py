@@ -3,7 +3,8 @@
 
 Covers the hard gates of the original IdeaScientist reward (valid JSON, every field filled, every cited
 paper actually read, no paper on or after the cutoff) plus the schemas of gaps/, candidates.md and scores.md,
-and the story-first fields (story, pilot_guidance, a promise signal for every prediction).
+the story-first fields (story, pilot_guidance, a promise signal for every prediction), and that the idea is not
+framed as one of the excluded types (audit, fidelity).
 
 Usage: python check_run.py RUN_DIR        (exit code 1 when any ERROR is found)
 """
@@ -43,6 +44,9 @@ SOTA_KILL = re.compile(r"(?=.*(?:SOTA|state.of.the.art|baseline|基线|已有方
                        r"|fails? to (?:beat|outperform|exceed|surpass|improve)|no (?:better|gain|improvement)"
                        r"|worse than|underperform|lags? behind|falls? short|不优于|不如|不超过|未超过|没有?超过"
                        r"|未能超越|持平|落后|差于|劣于|没有提升|无提升))", re.I | re.S)
+# wording of the excluded idea types (references/idea-constraints.md) in the fields that state the idea itself
+AVOID = re.compile(r"审计|稽核|核查|审查|保真|忠实|audit|fidelity|faithful", re.I)
+AVOID_FIELDS = ("title", "one_sentence_thesis", "story", "key_novelty", "method")
 GOAL = re.compile(r"^\s*###\s*Goal\s*:", re.M | re.I)
 
 
@@ -123,6 +127,10 @@ def main(argv):
         if not path.startswith(NUMBERS_OK) and re.search(r"\d+(?:\.\d+)?\s?%", s):
             warn(f"report.json:{path} has a percentage: fine if it is a cited fact, not if it is a result of "
                  "the proposed method")
+        avoid = AVOID.search(s) if path.startswith(AVOID_FIELDS) else None
+        if avoid:
+            err(f"report.json:{path} frames the idea as audit / fidelity ('{avoid.group(0)}'): this kind of idea "
+                "is excluded (references/idea-constraints.md)")
 
     # 2) upstream artifacts follow their schemas
     gap_files = sorted((run / "gaps").glob("*.md")) if (run / "gaps").is_dir() else []
